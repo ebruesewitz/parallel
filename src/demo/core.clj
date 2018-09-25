@@ -33,8 +33,7 @@
                   :food-scale 30.0 ; Scale factor for food drawing
                   :nants-sqrt 10 ; Number of ants = nants-sqrt^2
                   :pher-scale 20.0 ; Scale factor for pheromone drawing
-                  :scale 5 ; Pixels per world cell
-                  }}))
+                  :scale 5}})) ; Pixels per world cell
 
 (defn on-render [state img]
   (doto img
@@ -42,6 +41,9 @@
     (ui-world/render-all-places (:config state) (:world state))
     (ui-world/render-home {:scale (get-in state [:config :scale])
                            :home-off (/ (get-in state [:config :dim]) 4)
+                           :nants-sqrt (get-in state [:config :nants-sqrt])})
+    (ui-world/render-home {:scale (get-in state [:config :scale])
+                           :home-off (- (get-in state [:config :dim]) 20)
                            :nants-sqrt (get-in state [:config :nants-sqrt])})))
 
 (defn init-panel [state]
@@ -78,7 +80,19 @@
             :let [place (get-in (:world @state) [x y])]]
       (alter place assoc :home true
              :ant (domain/build-ant {:dir (rand-int 8)
-                                     :agent (agent (:location @place))}))))
+                                     :agent (agent (:location @place))
+                                     :colony "A"}))))
+  state)
+
+(defn init-home-2 [state]
+  (let [home-off (- (get-in @state [:config :dim]) 20)
+        home-range (range home-off (+ (get-in @state [:config :nants-sqrt]) home-off))]
+    (doseq [x home-range y home-range
+            :let [place (get-in (:world @state) [x y])]]
+      (alter place assoc :home2 true
+             :ant (domain/build-ant {:dir (rand-int 8)
+                                     :agent (agent (:location @place))
+                                     :colony "B"}))))
   state)
 
 (defn init-ants [state]
@@ -105,7 +119,7 @@
 
 (defn reset-pheromones [state]
   (doseq [row (:world @state), col row]
-    (alter col assoc :pher 0)))
+    (alter col assoc :phera 0)))
 
 (defn animation-loop [_ state]
   (send-off *agent* animation-loop state)
@@ -117,7 +131,7 @@
   (send-off *agent* evaporation-loop state)
   (dosync
    (doseq [row (:world @state), col row]
-     (alter col update :pher * (get-in @state [:config :evaporation-rate]))))
+     (alter col update :phera * (get-in @state [:config :evaporation-rate]))))
   (Thread/sleep (get-in @state [:config :evaporation-sleep-ms]))
   nil)
 
@@ -147,6 +161,7 @@
   (dosync (-> app-state
               (init-world)
               (init-home)
+              (init-home-2)
               (init-food)))
   (doto app-state
     (init-panel)
