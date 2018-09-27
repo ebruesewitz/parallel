@@ -84,6 +84,8 @@
                                      :colony "A"}))))
   state)
 
+; LIS & TESSA: basically a copy of init-home just on the opposite corner. I'll admit this is laze and we probably would refactor
+; this to be more composable if we had more time
 (defn init-home-2 [state]
   (let [home-off (- (get-in @state [:config :dim]) 20)
         home-range (range home-off (+ (get-in @state [:config :nants-sqrt]) home-off))]
@@ -117,6 +119,7 @@
     (alter col assoc :food 0))
   (init-food state))
 
+; LIS & TESSA: we didn't bother modifying this function as it actually isnt used anywhere in the code base
 (defn reset-pheromones [state]
   (doseq [row (:world @state), col row]
     (alter col assoc :phera 0)))
@@ -161,6 +164,7 @@
   (dosync (-> app-state
               (init-world)
               (init-home)
+              ; LIS & TESSA: we need to init the other home here!
               (init-home-2)
               (init-food)))
   (doto app-state

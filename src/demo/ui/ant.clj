@@ -12,8 +12,12 @@
    6 [0 2 4 2]
    7 [0 0 4 4]})
 
+; LIS & TESSA: modify the color of the ant to match the colony that its from
+(defn ant-colony-color [ant]
+  (if (= (:colony ant) "A") :green :blue))
+
 (defn ant-color [ant]
-  (if (:food ant) :red :black))
+  (if (:food ant) :red (ant-colony-color ant)))
 
 (defn next-loc [dir loc config]
   (-> dir directions (util/delta (util/scale loc (:scale config)))))

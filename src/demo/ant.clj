@@ -6,45 +6,50 @@
   ;"increase food in place by 1, then remove food from ant"
   (-> place (update :food inc) (update :ant dissoc :food)))
 
-(defn no-pher-a [place ant]
-  (or (:home place) (:home2 place) (= (:colony ant) "B"))
+; LIS & TESSA: create function to determine if this place is a home
+(defn is-home [place]
+  (or (:home place) (:home2 place))
 )
 
-(defn no-pher-b [place ant]
-  (or (:home place) (:home2 place) (= (:colony ant) "A"))
+; LIS & TESSA: create function to determine if pheremone A is allowed to be left behind currently
+(defn is-pher-a-allowed [place ant]
+  (not (or (is-home place) (= (:colony ant) "B")))
 )
 
+; LIS & TESSA: create function to determine if pheremone B is allowed to be left behind currently
+(defn is-pher-b-allowed [place ant]
+  (not (or (is-home place) (= (:colony ant) "A")))
+)
+
+; LIS & TESSA: update the places pheromones in the space if they are allowed to be updated.
 (defn trail [place]
-  (-> place (update :phera #(if (no-pher-a place (:ant place)) % (inc %))) (update :pherb #(if (no-pher-b place (:ant place)) % (inc %))) (dissoc :ant)))
+  (-> place (update :phera #(if (is-pher-a-allowed place (:ant place)) (inc %) %)) (update :pherb #(if (is-pher-b-allowed place (:ant place)) (inc %) %)) (dissoc :ant)))
 
 (defn move [from-place to-place]
-  ; "returns an array with updated from-place and to-place"
-  ; "remove ant from from-place and increase pheremones there"
   [(trail from-place)
-  ;  "set the ant in the to place to be from-place.ant"
    (assoc to-place :ant (:ant from-place))])
 
 (defn take-food [place]
-  ; "update the place.ant.food to be true, decrease food from place.food"
   (-> place (update :food dec) (assoc-in [:ant :food] true)))
 
 (defn turn [place amount]
-  ; "update place.ant.dir to be amount?"
   (update-in place [:ant :dir] (comp (partial bound 8) +) amount))
 
-(def rank-by-phera (partial rank-by :phera))
-(def rank-by-pherb (partial rank-by :pherb))
-; "if this is home, return 1, otherwise return 0"
-(def rank-by-home (partial rank-by #(if (:home %) 1 0)))
-(def rank-by-home2 (partial rank-by #(if (:home2 %) 1 0)))
-; "rank by amount of food"
+; LIS & TESSA: turn this into a function that takes in which pheromone type should be used for ranking
+(defn rank-by-pher [pher] (partial rank-by pher))
+
+; LIS & TESSA: turn this into a function that takes in which home should be used for ranking homes
+(defn rank-by-home [home] (partial rank-by #(if (home %) 1 0)))
+
 (def rank-by-food (partial rank-by :food))
-; rank by amount of food and pher
-(def foraginga (juxt rank-by-food rank-by-phera))
-(def foragingb (juxt rank-by-food rank-by-pherb))
-; rank by home and pher
-(def homing (juxt rank-by-home rank-by-phera))
-(def homing2 (juxt rank-by-home rank-by-pherb))
+
+
+; LIS & TESSA: turn this into a function that takes in which pheromone we should be following while foraging
+(defn foraging [pher] (juxt rank-by-food (rank-by-pher pher)))
+
+; LIS & TESSA: turn this into a function that takes in which pheromone and home we should be following while homing
+(defn homing [home pher] (juxt (rank-by-home home) (rank-by-pher pher)))
+
 (def turn-around #(turn % 4))
 
 (defn rand-behavior [config world behavior place]
@@ -56,24 +61,28 @@
                          (ranks ahead-right)])]
     ((actions index) place)))
 
+; LIS & TESSA: pull up the behavior logic specific to colony so that we can reuse this code in behave. we could probably name
+; this function something a bit more specific
+(defn colonyBehavoir [config world place ahead pher home]
+  (if (get-in place [:ant :food])
+        (cond
+          (home place) (-> place drop-food turn-around)
+          (and (home ahead) (not (:ant ahead))) (move place ahead)
+          :else (rand-behavior config world (homing home pher) place))
+        (cond
+          (and (pos? (:food place)) (not (home place))) (-> place take-food turn-around)
+          (and (pos? (:food ahead)) (not (home ahead))) (move place ahead)
+          :else (rand-behavior config world (foraging pher) place))
+  )
+)
+
+; LIS & TESSA: use the colonyBehavior function above with phera attributes if the colony is A and pherb attributes
+; if the colony is B
 (defn behave [config world place]
   (let [[ahead & _] (world/nearby-places config world (:location place) (get-in place [:ant :dir]))]
     (if (= (get-in place [:ant :colony]) "A")
-      (if (get-in place [:ant :food])
-        (cond
-          (:home place) (-> place drop-food turn-around)
-          (and (:home ahead) (not (:ant ahead))) (move place ahead)
-          :else (rand-behavior config world homing place))
-        (cond
-          (and (pos? (:food place)) (not (:home place))) (-> place take-food turn-around)
-          (and (pos? (:food ahead)) (not (:home ahead))) (move place ahead)
-          :else (rand-behavior config world foraginga place)))
-      (if (get-in place [:ant :food])
-        (cond
-          (:home2 place) (-> place drop-food turn-around)
-          (and (:home2 ahead) (not (:ant ahead))) (move place ahead)
-          :else (rand-behavior config world homing2 place))
-        (cond
-          (and (pos? (:food place)) (not (:home2 place))) (-> place take-food turn-around)
-          (and (pos? (:food ahead)) (not (:home2 ahead))) (move place ahead)
-          :else (rand-behavior config world foragingb place))))))
+      (colonyBehavoir config world place ahead :phera :home )
+      (colonyBehavoir config world place ahead :pherb :home2 )
+    )
+  )
+)

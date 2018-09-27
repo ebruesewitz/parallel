@@ -8,6 +8,7 @@
   (if (instance? Color color)
     color
     (color {:blue (Color/blue)
+            :green (Color/green)
             :red (Color/red)
             :black (Color/black)
             :white (Color/white)})))
